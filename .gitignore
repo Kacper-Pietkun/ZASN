@@ -133,3 +133,11 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+
+# dataset
+dataset
+baseline.py
+resize_images.py
+split_data.py
+output/
