@@ -70,7 +70,7 @@ def parse_option():
     # for pytorch >= 2.0, use `os.environ['LOCAL_RANK']` instead
     # (see https://pytorch.org/docs/stable/distributed.html#launch-utility)
     if PYTORCH_MAJOR_VERSION == 1:
-        parser.add_argument("--local_rank", type=int, required=True, help='local rank for DistributedDataParallel')
+        parser.add_argument("--local_rank", type=int, default=0, help='local rank for DistributedDataParallel')
 
     # for acceleration
     parser.add_argument('--fused_window_process', action='store_true',
@@ -104,7 +104,6 @@ def main(config):
     model_without_ddp = model
 
     optimizer = build_optimizer(config, model)
-    model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[config.LOCAL_RANK], broadcast_buffers=False)
     loss_scaler = NativeScalerWithGradNormCount()
 
     if config.TRAIN.ACCUMULATION_STEPS > 1:
@@ -153,11 +152,10 @@ def main(config):
     logger.info("Start training")
     start_time = time.time()
     for epoch in range(config.TRAIN.START_EPOCH, config.TRAIN.EPOCHS):
-        data_loader_train.sampler.set_epoch(epoch)
 
         train_one_epoch(config, model, criterion, data_loader_train, optimizer, epoch, mixup_fn, lr_scheduler,
                         loss_scaler)
-        if dist.get_rank() == 0 and (epoch % config.SAVE_FREQ == 0 or epoch == (config.TRAIN.EPOCHS - 1)):
+        if (epoch % config.SAVE_FREQ == 0 or epoch == (config.TRAIN.EPOCHS - 1)):
             save_checkpoint(config, epoch, model_without_ddp, max_accuracy, optimizer, lr_scheduler, loss_scaler,
                             logger)
 
@@ -254,10 +252,6 @@ def validate(config, data_loader, model):
         loss = criterion(output, target)
         acc1, acc5 = accuracy(output, target, topk=(1, 5))
 
-        acc1 = reduce_tensor(acc1)
-        acc5 = reduce_tensor(acc5)
-        loss = reduce_tensor(loss)
-
         loss_meter.update(loss.item(), target.size(0))
         acc1_meter.update(acc1.item(), target.size(0))
         acc5_meter.update(acc5.item(), target.size(0))
@@ -313,10 +307,8 @@ if __name__ == '__main__':
         rank = -1
         world_size = -1
     torch.cuda.set_device(config.LOCAL_RANK)
-    torch.distributed.init_process_group(backend='nccl', init_method='env://', world_size=world_size, rank=rank)
-    torch.distributed.barrier()
 
-    seed = config.SEED + dist.get_rank()
+    seed = config.SEED
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
     np.random.seed(seed)
@@ -324,9 +316,9 @@ if __name__ == '__main__':
     cudnn.benchmark = True
 
     # linear scale the learning rate according to total batch size, may not be optimal
-    linear_scaled_lr = config.TRAIN.BASE_LR * config.DATA.BATCH_SIZE * dist.get_world_size() / 512.0
-    linear_scaled_warmup_lr = config.TRAIN.WARMUP_LR * config.DATA.BATCH_SIZE * dist.get_world_size() / 512.0
-    linear_scaled_min_lr = config.TRAIN.MIN_LR * config.DATA.BATCH_SIZE * dist.get_world_size() / 512.0
+    linear_scaled_lr = config.TRAIN.BASE_LR * config.DATA.BATCH_SIZE / 512.0
+    linear_scaled_warmup_lr = config.TRAIN.WARMUP_LR * config.DATA.BATCH_SIZE / 512.0
+    linear_scaled_min_lr = config.TRAIN.MIN_LR * config.DATA.BATCH_SIZE / 512.0
     # gradient accumulation also need to scale the learning rate
     if config.TRAIN.ACCUMULATION_STEPS > 1:
         linear_scaled_lr = linear_scaled_lr * config.TRAIN.ACCUMULATION_STEPS
@@ -339,13 +331,12 @@ if __name__ == '__main__':
     config.freeze()
 
     os.makedirs(config.OUTPUT, exist_ok=True)
-    logger = create_logger(output_dir=config.OUTPUT, dist_rank=dist.get_rank(), name=f"{config.MODEL.NAME}")
+    logger = create_logger(output_dir=config.OUTPUT, dist_rank=0, name=f"{config.MODEL.NAME}")
 
-    if dist.get_rank() == 0:
-        path = os.path.join(config.OUTPUT, "config.json")
-        with open(path, "w") as f:
-            f.write(config.dump())
-        logger.info(f"Full config saved to {path}")
+    path = os.path.join(config.OUTPUT, "config.json")
+    with open(path, "w") as f:
+        f.write(config.dump())
+    logger.info(f"Full config saved to {path}")
 
     # print config
     logger.info(config.dump())
