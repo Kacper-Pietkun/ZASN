@@ -17,7 +17,7 @@ try:
     from tutel import moe as tutel_moe
 except:
     tutel_moe = None
-    print("Tutel has not been installed. To use Swin-MoE, please install Tutel; otherwise, just ignore this.")
+    # print("Tutel has not been installed. To use Swin-MoE, please install Tutel; otherwise, just ignore this.")
 
 
 class Mlp(nn.Module):
