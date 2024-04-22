@@ -12,6 +12,11 @@ import random
 import argparse
 import datetime
 import numpy as np
+import optuna
+from optuna.trial import TrialState
+from getpass import getpass
+import neptune
+import neptune.integrations.optuna as optuna_utils
 
 import torch
 import torch.backends.cudnn as cudnn
@@ -87,12 +92,12 @@ def parse_option():
     return args, config
 
 
-def main(config):
-    dataset_train, dataset_val, data_loader_train, data_loader_val, mixup_fn = build_loader(config)
+def objective(trial):
+    dataset_train, dataset_val, data_loader_train, data_loader_val, mixup_fn, mixup_active, label_smooth = build_loader(config, trial)
 
     logger.info(f"Creating model:{config.MODEL.TYPE}/{config.MODEL.NAME}")
     model = build_model(config)
-    logger.info(str(model))
+    # logger.info(str(model))
 
     n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
     logger.info(f"number of params: {n_parameters}")
@@ -103,18 +108,18 @@ def main(config):
     model.cuda()
     model_without_ddp = model
 
-    optimizer = build_optimizer(config, model)
+    optimizer = build_optimizer(config, model, trial)
     loss_scaler = NativeScalerWithGradNormCount()
 
     if config.TRAIN.ACCUMULATION_STEPS > 1:
-        lr_scheduler = build_scheduler(config, optimizer, len(data_loader_train) // config.TRAIN.ACCUMULATION_STEPS)
+        lr_scheduler = build_scheduler(config, optimizer, len(data_loader_train) // config.TRAIN.ACCUMULATION_STEPS, trial)
     else:
-        lr_scheduler = build_scheduler(config, optimizer, len(data_loader_train))
+        lr_scheduler = build_scheduler(config, optimizer, len(data_loader_train), trial)
 
-    if config.AUG.MIXUP > 0.:
+    if mixup_active > 0.:
         # smoothing is handled with mixup label transform
         criterion = SoftTargetCrossEntropy()
-    elif config.MODEL.LABEL_SMOOTHING > 0.:
+    elif label_smooth > 0.:
         criterion = LabelSmoothingCrossEntropy(smoothing=config.MODEL.LABEL_SMOOTHING)
     else:
         criterion = torch.nn.CrossEntropyLoss()
@@ -131,15 +136,56 @@ def main(config):
         acc1, acc5, loss = validate(config, data_loader_val, model)
         logger.info(f"Accuracy of the network on the {len(dataset_val)} test images: {acc1:.1f}%")
 
-        if acc1 > max_accuracy:
-            save_checkpoint(config, epoch, model_without_ddp, max_accuracy, optimizer, lr_scheduler, loss_scaler, logger)
+        # if acc1 > max_accuracy:
+        #     save_checkpoint(config, epoch, model_without_ddp, max_accuracy, optimizer, lr_scheduler, loss_scaler, logger)
 
         max_accuracy = max(max_accuracy, acc1)
         logger.info(f'Max accuracy: {max_accuracy:.2f}%')
 
+        trial.report(acc1, epoch)
+        if trial.should_prune():
+            raise optuna.exceptions.TrialPruned()
+
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
     logger.info('Training time {}'.format(total_time_str))
+
+    return max_accuracy
+
+
+def main(config):
+
+
+    run = neptune.init_run(
+        project="niestety13/ZASN",
+        api_token="eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiJiNjYwMzBjYy0yNjMyLTRlMzctYTNkNC0wMTg4N2EzZGJkNTcifQ==",
+    )
+    neptune_callback = optuna_utils.NeptuneCallback(run)
+
+
+    study = optuna.create_study(direction="maximize")
+    study.optimize(objective, n_trials=60, callbacks=[neptune_callback])
+
+    pruned_trials = study.get_trials(deepcopy=False, states=[TrialState.PRUNED])
+    complete_trials = study.get_trials(deepcopy=False, states=[TrialState.COMPLETE])
+
+    logger.info("Study statistics: ")
+    logger.info(f"  Number of finished trials: {len(study.trials)}")
+    logger.info(f"  Number of pruned trials: {len(pruned_trials)}")
+    logger.info(f"  Number of complete trials: {len(complete_trials)}")
+
+    logger.info("Best trial:")
+    trial = study.best_trial
+
+    logger.info("  Value: {trial.value}")
+
+    logger.info("  Params: ")
+    for key, value in trial.params.items():
+        logger.info(f"    {key}: {value}")
+
+
+    run.stop()
+
 
 
 def train_one_epoch(config, model, criterion, data_loader, optimizer, epoch, mixup_fn, lr_scheduler, loss_scaler):

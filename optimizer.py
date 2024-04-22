@@ -16,7 +16,7 @@ except:
     # print("To use FusedLAMB or FusedAdam, please install apex.")
 
 
-def build_optimizer(config, model, simmim=False, is_pretrain=False):
+def build_optimizer(config, model, trial, simmim=False, is_pretrain=False):
     """
     Build optimizer, set weight decay of normalization to 0 by default.
     """
@@ -38,20 +38,23 @@ def build_optimizer(config, model, simmim=False, is_pretrain=False):
     else:
         parameters = set_weight_decay(model, skip, skip_keywords)
 
+    weight_decay = trial.suggest_float("weight_decay", 0.0, 0.3, step=0.05)
+    base_lr = trial.suggest_float("base_lr", 1e-6, 1e-3, log=True)
+
     opt_lower = config.TRAIN.OPTIMIZER.NAME.lower()
     optimizer = None
     if opt_lower == 'sgd':
         optimizer = optim.SGD(parameters, momentum=config.TRAIN.OPTIMIZER.MOMENTUM, nesterov=True,
-                              lr=config.TRAIN.BASE_LR, weight_decay=config.TRAIN.WEIGHT_DECAY)
+                              lr=base_lr, weight_decay=weight_decay)
     elif opt_lower == 'adamw':
         optimizer = optim.AdamW(parameters, eps=config.TRAIN.OPTIMIZER.EPS, betas=config.TRAIN.OPTIMIZER.BETAS,
-                                lr=config.TRAIN.BASE_LR, weight_decay=config.TRAIN.WEIGHT_DECAY)
-    elif opt_lower == 'fused_adam':
+                                lr=base_lr, weight_decay=weight_decay)
+    elif opt_lower == 'FusedAdam':
         optimizer = FusedAdam(parameters, eps=config.TRAIN.OPTIMIZER.EPS, betas=config.TRAIN.OPTIMIZER.BETAS,
-                              lr=config.TRAIN.BASE_LR, weight_decay=config.TRAIN.WEIGHT_DECAY)
-    elif opt_lower == 'fused_lamb':
+                              lr=base_lr, weight_decay=weight_decay)
+    elif opt_lower == 'FusedLAMB':
         optimizer = FusedLAMB(parameters, eps=config.TRAIN.OPTIMIZER.EPS, betas=config.TRAIN.OPTIMIZER.BETAS,
-                              lr=config.TRAIN.BASE_LR, weight_decay=config.TRAIN.WEIGHT_DECAY)
+                              lr=base_lr, weight_decay=config.TRAIN.WEIGHT_DECAY)
 
     return optimizer
 
