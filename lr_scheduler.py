@@ -13,22 +13,28 @@ from timm.scheduler.step_lr import StepLRScheduler
 from timm.scheduler.scheduler import Scheduler
 
 
-def build_scheduler(config, optimizer, n_iter_per_epoch):
+def build_scheduler(config, optimizer, n_iter_per_epoch, trial):
     num_steps = int(config.TRAIN.EPOCHS * n_iter_per_epoch)
     warmup_steps = int(config.TRAIN.WARMUP_EPOCHS * n_iter_per_epoch)
     decay_steps = int(config.TRAIN.LR_SCHEDULER.DECAY_EPOCHS * n_iter_per_epoch)
     multi_steps = [i * n_iter_per_epoch for i in config.TRAIN.LR_SCHEDULER.MULTISTEPS]
 
+    
+    warmup_init_lr = trial.suggest_float("warmup_init_lr", 1e-8, 1e-5, log=True)
+    min_lr = trial.suggest_float("min_lr", 1e-8, 1e-5, log=True)
+    cycle_limit = trial.suggest_int("cycle_limit", 1, 3, step=1)
+
+
     lr_scheduler = None
     if config.TRAIN.LR_SCHEDULER.NAME == 'cosine':
         lr_scheduler = CosineLRScheduler(
             optimizer,
-            t_initial=(num_steps - warmup_steps) if config.TRAIN.LR_SCHEDULER.WARMUP_PREFIX else num_steps,
+            t_initial=(num_steps - warmup_steps)/cycle_limit,
             t_mul=1.,
-            lr_min=config.TRAIN.MIN_LR,
-            warmup_lr_init=config.TRAIN.WARMUP_LR,
+            lr_min=min_lr,
+            warmup_lr_init=warmup_init_lr,
             warmup_t=warmup_steps,
-            cycle_limit=1,
+            cycle_limit=cycle_limit,
             t_in_epochs=False,
             warmup_prefix=config.TRAIN.LR_SCHEDULER.WARMUP_PREFIX,
         )

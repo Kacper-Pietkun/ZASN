@@ -41,7 +41,7 @@ except:
     from timm.data.transforms import _pil_interp
 
 
-def build_loader(config):
+def build_loader(config, trial):
     config.defrost()
     dataset_train, config.MODEL.NUM_CLASSES = build_dataset(is_train=True, config=config)
     config.freeze()
@@ -50,9 +50,11 @@ def build_loader(config):
     print(f"local rank {config.LOCAL_RANK} / single node - successfully build val dataset")
 
 
+    batch_size = trial.suggest_int("batch_size", 16, 128, step=16)
+
     data_loader_train = torch.utils.data.DataLoader(
         dataset_train,
-        batch_size=config.DATA.BATCH_SIZE,
+        batch_size=batch_size,
         num_workers=config.DATA.NUM_WORKERS,
         pin_memory=config.DATA.PIN_MEMORY,
         drop_last=True,
@@ -61,23 +63,28 @@ def build_loader(config):
 
     data_loader_val = torch.utils.data.DataLoader(
         dataset_val,
-        batch_size=config.DATA.BATCH_SIZE,
+        batch_size=batch_size,
         shuffle=False,
         num_workers=config.DATA.NUM_WORKERS,
         pin_memory=config.DATA.PIN_MEMORY,
         drop_last=False
     )
 
+    aug_mixup = trial.suggest_float("aug_mixup", 0, 1, step=0.1)
+    aug_cutmix = trial.suggest_float("aug_cutmix", 0, 1, step=0.1)
+    aug_mix_prob = trial.suggest_float("aug_mix_prob", 0, 1, step=0.1)
+    label_smooth = trial.suggest_float("label_smooth", 0, 1, step=0.1)
+
     # setup mixup / cutmix
     mixup_fn = None
-    mixup_active = config.AUG.MIXUP > 0 or config.AUG.CUTMIX > 0. or config.AUG.CUTMIX_MINMAX is not None
+    mixup_active = aug_mixup > 0 or aug_cutmix > 0. or config.AUG.CUTMIX_MINMAX is not None
     if mixup_active:
         mixup_fn = Mixup(
-            mixup_alpha=config.AUG.MIXUP, cutmix_alpha=config.AUG.CUTMIX, cutmix_minmax=config.AUG.CUTMIX_MINMAX,
-            prob=config.AUG.MIXUP_PROB, switch_prob=config.AUG.MIXUP_SWITCH_PROB, mode=config.AUG.MIXUP_MODE,
-            label_smoothing=config.MODEL.LABEL_SMOOTHING, num_classes=config.MODEL.NUM_CLASSES)
+            mixup_alpha=aug_mixup, cutmix_alpha=aug_cutmix, cutmix_minmax=config.AUG.CUTMIX_MINMAX,
+            prob=aug_mix_prob, switch_prob=config.AUG.MIXUP_SWITCH_PROB, mode=config.AUG.MIXUP_MODE,
+            label_smoothing=label_smooth, num_classes=config.MODEL.NUM_CLASSES)
 
-    return dataset_train, dataset_val, data_loader_train, data_loader_val, mixup_fn
+    return dataset_train, dataset_val, data_loader_train, data_loader_val, mixup_fn, mixup_active, label_smooth
 
 
 def build_dataset(is_train, config):
