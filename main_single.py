@@ -397,11 +397,10 @@ if __name__ == '__main__':
         run = neptune.init_run(
             project="niestety13/ZASN3",
             api_token=api_token,
-            custom_run_id="BestModel_Base_Mamba_1"
+            custom_run_id="BestModel_ablation_2_Mamba"
         )
         my_params["do_shift"] = config.MODEL.DO_SHIFT
         run["hyperparameters"] = my_params
 
         main(config, run, run_idx)
         run.stop()
-
