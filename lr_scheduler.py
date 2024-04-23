@@ -19,16 +19,17 @@ def build_scheduler(config, optimizer, n_iter_per_epoch):
     decay_steps = int(config.TRAIN.LR_SCHEDULER.DECAY_EPOCHS * n_iter_per_epoch)
     multi_steps = [i * n_iter_per_epoch for i in config.TRAIN.LR_SCHEDULER.MULTISTEPS]
 
+
     lr_scheduler = None
     if config.TRAIN.LR_SCHEDULER.NAME == 'cosine':
         lr_scheduler = CosineLRScheduler(
             optimizer,
-            t_initial=(num_steps - warmup_steps) if config.TRAIN.LR_SCHEDULER.WARMUP_PREFIX else num_steps,
+            t_initial=(num_steps - warmup_steps) / config.TRAIN.CYCLE_LIMIT,
             t_mul=1.,
             lr_min=config.TRAIN.MIN_LR,
             warmup_lr_init=config.TRAIN.WARMUP_LR,
             warmup_t=warmup_steps,
-            cycle_limit=1,
+            cycle_limit=config.TRAIN.CYCLE_LIMIT,
             t_in_epochs=False,
             warmup_prefix=config.TRAIN.LR_SCHEDULER.WARMUP_PREFIX,
         )

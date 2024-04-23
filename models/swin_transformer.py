@@ -385,7 +385,7 @@ class BasicLayer(nn.Module):
     def __init__(self, dim, input_resolution, depth, num_heads, window_size,
                  mlp_ratio=4., qkv_bias=True, qk_scale=None, drop=0., attn_drop=0.,
                  drop_path=0., norm_layer=nn.LayerNorm, downsample=None, use_checkpoint=False,
-                 fused_window_process=False):
+                 fused_window_process=False, do_shift=True):
 
         super().__init__()
         self.dim = dim
@@ -393,18 +393,35 @@ class BasicLayer(nn.Module):
         self.depth = depth
         self.use_checkpoint = use_checkpoint
 
-        # build blocks
-        self.blocks = nn.ModuleList([
-            SwinTransformerBlock(dim=dim, input_resolution=input_resolution,
-                                 num_heads=num_heads, window_size=window_size,
-                                 shift_size=0 if (i % 2 == 0) else window_size // 2,
-                                 mlp_ratio=mlp_ratio,
-                                 qkv_bias=qkv_bias, qk_scale=qk_scale,
-                                 drop=drop, attn_drop=attn_drop,
-                                 drop_path=drop_path[i] if isinstance(drop_path, list) else drop_path,
-                                 norm_layer=norm_layer,
-                                 fused_window_process=fused_window_process)
-            for i in range(depth)])
+
+        if do_shift:
+            print("SHIFT")
+            # build blocks
+            self.blocks = nn.ModuleList([
+                SwinTransformerBlock(dim=dim, input_resolution=input_resolution,
+                                    num_heads=num_heads, window_size=window_size,
+                                    shift_size=0 if (i % 2 == 0) else window_size // 2,
+                                    mlp_ratio=mlp_ratio,
+                                    qkv_bias=qkv_bias, qk_scale=qk_scale,
+                                    drop=drop, attn_drop=attn_drop,
+                                    drop_path=drop_path[i] if isinstance(drop_path, list) else drop_path,
+                                    norm_layer=norm_layer,
+                                    fused_window_process=fused_window_process)
+                for i in range(depth)])
+        else:
+            print("NO SHIFT")
+            # build blocks
+            self.blocks = nn.ModuleList([
+                SwinTransformerBlock(dim=dim, input_resolution=input_resolution,
+                                    num_heads=num_heads, window_size=window_size,
+                                    shift_size=0,
+                                    mlp_ratio=mlp_ratio,
+                                    qkv_bias=qkv_bias, qk_scale=qk_scale,
+                                    drop=drop, attn_drop=attn_drop,
+                                    drop_path=drop_path[i] if isinstance(drop_path, list) else drop_path,
+                                    norm_layer=norm_layer,
+                                    fused_window_process=fused_window_process)
+                for i in range(depth)])
 
         # patch merging layer
         if downsample is not None:
@@ -514,7 +531,7 @@ class SwinTransformer(nn.Module):
                  window_size=7, mlp_ratio=4., qkv_bias=True, qk_scale=None,
                  drop_rate=0., attn_drop_rate=0., drop_path_rate=0.1,
                  norm_layer=nn.LayerNorm, ape=False, patch_norm=True,
-                 use_checkpoint=False, fused_window_process=False, **kwargs):
+                 use_checkpoint=False, fused_window_process=False, do_shift=True, **kwargs):
         super().__init__()
 
         self.num_classes = num_classes
@@ -524,6 +541,7 @@ class SwinTransformer(nn.Module):
         self.patch_norm = patch_norm
         self.num_features = int(embed_dim * 2 ** (self.num_layers - 1))
         self.mlp_ratio = mlp_ratio
+        self.do_shift = do_shift
 
         # split image into non-overlapping patches
         self.patch_embed = PatchEmbed(
@@ -559,7 +577,8 @@ class SwinTransformer(nn.Module):
                                norm_layer=norm_layer,
                                downsample=PatchMerging if (i_layer < self.num_layers - 1) else None,
                                use_checkpoint=use_checkpoint,
-                               fused_window_process=fused_window_process)
+                               fused_window_process=fused_window_process,
+                               do_shift=self.do_shift)
             self.layers.append(layer)
 
         self.norm = norm_layer(self.num_features)
