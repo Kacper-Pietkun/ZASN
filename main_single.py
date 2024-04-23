@@ -394,23 +394,7 @@ if __name__ == '__main__':
         run = neptune.init_run(
             project="niestety13/ZASN",
             api_token="eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiJiNjYwMzBjYy0yNjMyLTRlMzctYTNkNC0wMTg4N2EzZGJkNTcifQ==",
-            custom_run_id="BestModel_Base"
-        )
-        my_params["do_shift"] = config.MODEL.DO_SHIFT
-        run["hyperparameters"] = my_params
-
-        main(config, run, run_idx)
-        run.stop()
-
-    config.defrost()
-    config.MODEL.DO_SHIFT = False
-    config.freeze()
-
-    for run_idx in range(3):
-        run = neptune.init_run(
-            project="niestety13/ZASN",
-            api_token="eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiJiNjYwMzBjYy0yNjMyLTRlMzctYTNkNC0wMTg4N2EzZGJkNTcifQ==",
-            custom_run_id="BestModel_No_Shift"
+            # custom_run_id="BestModel_Base"
         )
         my_params["do_shift"] = config.MODEL.DO_SHIFT
         run["hyperparameters"] = my_params
