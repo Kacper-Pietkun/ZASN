@@ -102,9 +102,9 @@ def main(config, run, run_idx):
 
     n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
     logger.info(f"number of params: {n_parameters}")
-    if hasattr(model, 'flops'):
-        flops = model.flops()
-        logger.info(f"number of GFLOPs: {flops / 1e9}")
+    # if hasattr(model, 'flops'):
+        # flops = model.flops()
+        # logger.info(f"number of GFLOPs: {flops / 1e9}")
 
     model.cuda()
     model_without_ddp = model
