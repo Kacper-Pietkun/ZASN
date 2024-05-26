@@ -96,7 +96,7 @@ def objective(trial):
     dataset_train, dataset_val, data_loader_train, data_loader_val, mixup_fn, mixup_active, label_smooth = build_loader(config, trial)
 
     logger.info(f"Creating model:{config.MODEL.TYPE}/{config.MODEL.NAME}")
-    model = build_model(config)
+    model = build_model(config, trial=trial)
     logger.info(str(model))
 
     n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)

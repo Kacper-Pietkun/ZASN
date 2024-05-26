@@ -197,7 +197,7 @@ class SwinTransformerBlock(nn.Module):
     def __init__(self, dim, input_resolution, num_heads, window_size=7, shift_size=0,
                  mlp_ratio=4., qkv_bias=True, qk_scale=None, drop=0., attn_drop=0., drop_path=0.,
                  act_layer=nn.GELU, norm_layer=nn.LayerNorm,
-                 fused_window_process=False):
+                 fused_window_process=False, suggested_d_state=16):
         super().__init__()
         self.dim = dim
         self.input_resolution = input_resolution
@@ -219,7 +219,7 @@ class SwinTransformerBlock(nn.Module):
         self.attn = Mamba(
             # This module uses roughly 3 * expand * d_model^2 parameters
             d_model=dim,  # Model dimension d_model
-            d_state=16,  # SSM state expansion factor
+            d_state=suggested_d_state,  # SSM state expansion factor
             d_conv=4,  # Local convolution width
             expand=2,  # Block expansion factor
         ).to("cuda")
@@ -395,7 +395,7 @@ class BasicLayer(nn.Module):
     def __init__(self, dim, input_resolution, depth, num_heads, window_size,
                  mlp_ratio=4., qkv_bias=True, qk_scale=None, drop=0., attn_drop=0.,
                  drop_path=0., norm_layer=nn.LayerNorm, downsample=None, use_checkpoint=False,
-                 fused_window_process=False):
+                 fused_window_process=False, suggested_d_state=16):
 
         super().__init__()
         self.dim = dim
@@ -413,7 +413,8 @@ class BasicLayer(nn.Module):
                                  drop=drop, attn_drop=attn_drop,
                                  drop_path=drop_path[i] if isinstance(drop_path, list) else drop_path,
                                  norm_layer=norm_layer,
-                                 fused_window_process=fused_window_process)
+                                 fused_window_process=fused_window_process,
+                                 suggested_d_state=suggested_d_state)
             for i in range(depth)])
 
         # patch merging layer
@@ -524,7 +525,7 @@ class SwinTransformer(nn.Module):
                  window_size=7, mlp_ratio=4., qkv_bias=True, qk_scale=None,
                  drop_rate=0., attn_drop_rate=0., drop_path_rate=0.1,
                  norm_layer=nn.LayerNorm, ape=False, patch_norm=True,
-                 use_checkpoint=False, fused_window_process=False, **kwargs):
+                 use_checkpoint=False, fused_window_process=False, trial=None, **kwargs):
         super().__init__()
 
         self.num_classes = num_classes
@@ -554,6 +555,7 @@ class SwinTransformer(nn.Module):
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, sum(depths))]  # stochastic depth decay rule
 
         # build layers
+        suggested_d_state = trial.suggest_int("mamba_d_state", 4, 32, step=1)
         self.layers = nn.ModuleList()
         for i_layer in range(self.num_layers):
             layer = BasicLayer(dim=int(embed_dim * 2 ** i_layer),
@@ -569,7 +571,8 @@ class SwinTransformer(nn.Module):
                                norm_layer=norm_layer,
                                downsample=PatchMerging if (i_layer < self.num_layers - 1) else None,
                                use_checkpoint=use_checkpoint,
-                               fused_window_process=fused_window_process)
+                               fused_window_process=fused_window_process,
+                               suggested_d_state=suggested_d_state)
             self.layers.append(layer)
 
         self.norm = norm_layer(self.num_features)
