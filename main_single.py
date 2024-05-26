@@ -97,7 +97,7 @@ def objective(trial):
 
     logger.info(f"Creating model:{config.MODEL.TYPE}/{config.MODEL.NAME}")
     model = build_model(config)
-    # logger.info(str(model))
+    logger.info(str(model))
 
     n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
     logger.info(f"number of params: {n_parameters}")
@@ -156,9 +156,10 @@ def objective(trial):
 def main(config):
 
 
+    api_token = os.environ.get('NEPTUNE_API_TOKEN')
     run = neptune.init_run(
-        project="niestety13/ZASN",
-        api_token="eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiJiNjYwMzBjYy0yNjMyLTRlMzctYTNkNC0wMTg4N2EzZGJkNTcifQ==",
+        project="niestety13/ZASN3",
+        api_token=api_token,
     )
     neptune_callback = optuna_utils.NeptuneCallback(run)
 
