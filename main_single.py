@@ -128,7 +128,7 @@ def main(config, run, run_idx):
 
 
     transform = build_transform(False, config)
-    dataset_test = datasets.ImageFolder("C:/Users/kacpe/Documents/GitHub/Swin-Transformer/dataset/evaluation/test", transform=transform)
+    dataset_test = datasets.ImageFolder("dataset/evaluation/test", transform=transform)
     data_loader_test = torch.utils.data.DataLoader(
         dataset_test,
         batch_size=config.DATA.BATCH_SIZE,
@@ -138,7 +138,7 @@ def main(config, run, run_idx):
         drop_last=False
     )
 
-    dataset_train_no_aug = datasets.ImageFolder("C:/Users/kacpe/Documents/GitHub/Swin-Transformer/dataset/training/train", transform=transform)
+    dataset_train_no_aug = datasets.ImageFolder("dataset/training/train", transform=transform)
     data_loader_train_no_aug = torch.utils.data.DataLoader(
         dataset_train_no_aug,
         batch_size=config.DATA.BATCH_SIZE,
@@ -363,16 +363,17 @@ if __name__ == '__main__':
     logger.info(json.dumps(vars(args)))
 
 
-    my_params= {'batch_size': 80,
-                'aug_mixup': 0.2,
-                'aug_cutmix': 0.0,
-                'aug_mix_prob': 0.2,
-                'label_smooth': 0.30000000000000004,
-                'weight_decay': 0.15000000000000002,
-                'base_lr': 0.00014296740800918221,
-                'warmup_init_lr': 2.362156878011874e-07,
-                'min_lr': 3.622429674771131e-08,
-                'cycle_limit': 2}
+    my_params= {'batch_size': 16,
+                'aug_mixup': 0.4,
+                'aug_cutmix': 0.2,
+                'aug_mix_prob': 0.3,
+                'label_smooth': 0.3,
+                'weight_decay': 0.1,
+                'base_lr': 0.0000656747860067656,
+                'warmup_init_lr': 0.000006618832249504668,
+                'min_lr': 0.000002337219094261688,
+                'cycle_limit': 2,
+                'mamba_d_state': 20}
     
 
     config.defrost()
@@ -386,15 +387,17 @@ if __name__ == '__main__':
     config.AUG.CUTMIX = my_params["aug_cutmix"] 
     config.AUG.MIXUP_PROB = my_params["aug_mix_prob"]
     config.MODEL.LABEL_SMOOTHING = my_params["label_smooth"]
+    config.MODEL.MAMBA_D_STATE = my_params["mamba_d_state"]
     config.MODEL.DO_SHIFT = True
     config.freeze()
 
 
+    api_token = os.environ.get('NEPTUNE_API_TOKEN')
     for run_idx in range(3):
         run = neptune.init_run(
-            project="niestety13/ZASN",
-            api_token="eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiJiNjYwMzBjYy0yNjMyLTRlMzctYTNkNC0wMTg4N2EzZGJkNTcifQ==",
-            # custom_run_id="BestModel_Base"
+            project="niestety13/ZASN3",
+            api_token=api_token,
+            custom_run_id="BestModel_Base_Mamba_1"
         )
         my_params["do_shift"] = config.MODEL.DO_SHIFT
         run["hyperparameters"] = my_params

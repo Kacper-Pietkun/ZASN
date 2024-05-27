@@ -50,7 +50,8 @@ def build_model(config, is_pretrain=False):
                                 patch_norm=config.MODEL.SWIN.PATCH_NORM,
                                 use_checkpoint=config.TRAIN.USE_CHECKPOINT,
                                 fused_window_process=config.FUSED_WINDOW_PROCESS,
-                                do_shift=config.MODEL.DO_SHIFT)
+                                do_shift=config.MODEL.DO_SHIFT,
+                                mamba_d_state=config.MODEL.MAMBA_D_STATE)
     elif model_type == 'swinv2':
         model = SwinTransformerV2(img_size=config.DATA.IMG_SIZE,
                                   patch_size=config.MODEL.SWINV2.PATCH_SIZE,
