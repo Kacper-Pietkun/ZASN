@@ -388,7 +388,7 @@ if __name__ == '__main__':
     config.AUG.MIXUP_PROB = my_params["aug_mix_prob"]
     config.MODEL.LABEL_SMOOTHING = my_params["label_smooth"]
     config.MODEL.MAMBA_D_STATE = my_params["mamba_d_state"]
-    config.MODEL.DO_SHIFT = True
+    config.MODEL.DO_SHIFT = False
     config.freeze()
 
 
@@ -397,7 +397,7 @@ if __name__ == '__main__':
         run = neptune.init_run(
             project="niestety13/ZASN3",
             api_token=api_token,
-            custom_run_id="BestModel_Base_Mamba_1"
+            custom_run_id="BestModel_NoShift_Mamba_1"
         )
         my_params["do_shift"] = config.MODEL.DO_SHIFT
         run["hyperparameters"] = my_params
